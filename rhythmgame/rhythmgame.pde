@@ -1,6 +1,13 @@
-import processing.sound.*; //<>//
+int gameState = 0;  // 0 = MENU, 1 = GAME //<>//
 
-// Timing / gameplay-related constants
+// Track which keys are currently held:
+boolean dDown = false;
+boolean fDown = false;
+boolean jDown = false;
+boolean kDown = false;
+
+import processing.sound.*;
+
 final int NUM_NOTE_TYPES = 4;
 final float PERFECT_TOLERANCE_SECONDS = 0.05f;
 final float GREAT_TOLERANCE_SECONDS = 0.1f;
@@ -13,7 +20,6 @@ final int OK_SCORE = 20;
 final int COMBO_UP_INTERVAL = 10;
 final int COMBO_MAX_MULTIPLIER = 10;
 
-// Audio-visual-related constants
 final float BAR_LENGTH_PIXELS = 1800f;
 final float LANE_SPACING_PIXELS = 150f;
 final float TRACK_SCALE = 1.25f;
@@ -28,72 +34,76 @@ final color[] NOTE_COLORS = new color[]{
   color(255,190,0)
 };
 
-// Assets
 SoundFile musicTrack;
 TrackData trackData;
 SoundFile hitSound;
 
 PImage hitMarkerImage, bgImage;
-
 PImage[] noteImages;
 color[] weakNoteColors;
 PFont comboFont;
 
-// State
 int score = 0;
 int comboMultiplier = 1;
 int comboUpCounter = 0;
 int currentCombo = 0;
 
-// Popups
 ArrayList<ScorePopup> popups = new ArrayList<ScorePopup>();
 
 void setup() {
   size(1012,700,P3D);
   hint(ENABLE_DEPTH_SORT);
-  noSmooth(); // We can remove this if it runs smoothly without it at the end
+  noSmooth();
   
-  // Load note image
   hitMarkerImage = loadImage("jinsoul.jpg");
   if (hitMarkerImage == null) {
-    println("hitMarkerImage not found in data folder.");
     hitMarkerImage = createImage(64,64,ARGB);
     hitMarkerImage.loadPixels();
-    for (int i = 0; i < hitMarkerImage.pixels.length; i++) hitMarkerImage.pixels[i] = color(200);
+    for (int i = 0; i < hitMarkerImage.pixels.length; i++)
+      hitMarkerImage.pixels[i] = color(200);
     hitMarkerImage.updatePixels();
   }
   
-  // Load background
   bgImage = loadImage("traffic.jpg");
   if (bgImage == null) {
-    println("bgImage not found in data folder.");
     bgImage = createImage(width, height, ARGB);
     bgImage.loadPixels();
-    for (int i = 0; i < bgImage.pixels.length; i++) bgImage.pixels[i] = color(20);
+    for (int i = 0; i < bgImage.pixels.length; i++)
+      bgImage.pixels[i] = color(20);
     bgImage.updatePixels();
   }
   
-  // Load audio file
   musicTrack = new SoundFile(this, "karma.wav");
   hitSound = new SoundFile(this, "hit.wav");
   
-  // Load track data
   trackData = new TrackData(dataPath("karmatrack.txt"));
   
   noteImages = new PImage[NUM_NOTE_TYPES];
   weakNoteColors = new color[NUM_NOTE_TYPES];
   for (int i = 0; i < NUM_NOTE_TYPES; i++) {
-    weakNoteColors[i] = lerpColor(color(255,255,255), NOTE_COLORS[i], TINT_STRENGTH);
+    weakNoteColors[i] = lerpColor(color(255), NOTE_COLORS[i], TINT_STRENGTH);
     noteImages[i] = createTintedCopy(hitMarkerImage, NOTE_COLORS[i], TINT_STRENGTH);
   }
 
   comboFont = createFont("Square.ttf", 160, true);
   textFont(comboFont);
-  
-  musicTrack.play();
 }
 
+//Draw
 void draw() {
+
+  // MENU
+  if (gameState == 0) {
+    drawMenuScreen();
+
+    // START IF ALL KEYS HELD
+    if (dDown && fDown && jDown && kDown) {
+      startGame();
+    }
+    return;
+  }
+
+  // GAMEPLAY
   background(0);
 
   pushMatrix();
@@ -117,6 +127,44 @@ void draw() {
   drawScore();
   drawTrack();
   drawComboNumber();
+
+  // AUTO RETURN TO MENU WHEN SONG ENDS
+  if (!musicTrack.isPlaying()) {
+    gameState = 0;
+  }
+}
+
+void drawMenuScreen() {
+  background(0);
+
+  fill(255);
+  textAlign(CENTER);
+
+  textSize(60);
+  text("Traffic Jam", width/2, height/2 - 40);
+
+  textSize(30);
+  text("Hold D + F + J + K to START", width/2, height/2 + 20);
+}
+
+void startGame() {
+  score = 0;
+  comboMultiplier = 1;
+  comboUpCounter = 0;
+  currentCombo = 0;
+  popups.clear();
+
+  for (TrackData.Bar bar : trackData.bars) {
+    for (TrackData.Hit hit : bar.hits) {
+      hit.state = TrackData.Hit.HIT_PENDING;
+      hit.stateTime = 0;
+    }
+  }
+
+  musicTrack.cue(0);
+  musicTrack.play();
+
+  gameState = 1;
 }
 
 void drawScore() {
@@ -125,7 +173,7 @@ void drawScore() {
   fill(255);
   text("Score: " + score, 10, 30);
   textAlign(RIGHT);
-  text(comboMultiplier+"x", width-10, 30);
+  text(comboMultiplier + "x", width-10, 30);
 }
 
 void drawComboNumber() {
@@ -134,27 +182,31 @@ void drawComboNumber() {
   textSize(140);
   textAlign(RIGHT, CENTER);
   fill(255);
-  text(currentCombo, round(width * 0.93f), round(height * 0.5f));
+  text(currentCombo, round(width*0.93f), round(height*0.5f));
   popStyle();
 }
 
 void detectFailedHits() {
   float playbackPos = musicTrack.position() - trackData.introLength;
   float barLengthSeconds = 60f / (trackData.bpm/4f);
+
   for (int barIndex = 0; barIndex < trackData.bars.size(); ++barIndex) {
     TrackData.Bar bar = trackData.bars.get(barIndex);
     float barStartSeconds = barIndex * barLengthSeconds;
     
     if (barStartSeconds > playbackPos + OK_TOLERANCE_SECONDS) break;
-    if (barStartSeconds + barLengthSeconds < playbackPos - OK_TOLERANCE_SECONDS*2.0f) continue;
+    if (barStartSeconds + barLengthSeconds < playbackPos - OK_TOLERANCE_SECONDS*2f) continue;
     
     float beatStepSeconds = barLengthSeconds / bar.numBeats;
+
     for (TrackData.Hit hit : bar.hits) {
       if (hit.state != TrackData.Hit.HIT_PENDING) continue;
+
       float hitTimeSeconds = barStartSeconds + hit.beat*beatStepSeconds;
+
       if (playbackPos - hitTimeSeconds > OK_TOLERANCE_SECONDS) {
         hit.state = TrackData.Hit.HIT_FAILURE;
-        hit.stateTime = musicTrack.position() - trackData.introLength;
+        hit.stateTime = musicTrack.position();
         comboMultiplier = 1;
         comboUpCounter = 0;
         currentCombo = 0;
@@ -188,8 +240,6 @@ void drawTrack() {
     if (barStartY > cullMargin) continue;
     if (barStartY < -cullMargin * 2) break;
     
-    noFill();
-
     for (TrackData.Hit hit : bar.hits) {
       float hitX = barStartX + hit.note*LANE_SPACING_PIXELS;
       float hitY = barStartY + hit.beat*beatStepY;
@@ -199,17 +249,10 @@ void drawTrack() {
           image(noteImages[hit.note], hitX, hitY);
           break;
           
-        case TrackData.Hit.HIT_FAILURE: {
-          float timeSinceHit = playbackPos - hit.stateTime;
-          float alphaFactor = Math.max(1f - timeSinceHit / NOTE_FADE_TIME_SECONDS, 0f);
-          tint(255, alphaFactor * 255);
-          image(noteImages[hit.note], hitX, hitY);
-          noTint();
-          break;
-        }
+        case TrackData.Hit.HIT_FAILURE:
         case TrackData.Hit.HIT_SUCCESS: {
           float timeSinceHit = playbackPos - hit.stateTime;
-          float alphaFactor = Math.max(1f - timeSinceHit / NOTE_FADE_TIME_SECONDS, 0f);
+          float alphaFactor = max(1f - timeSinceHit / NOTE_FADE_TIME_SECONDS, 0f);
           tint(255, alphaFactor * 255);
           image(noteImages[hit.note], hitX, hitY);
           noTint();
@@ -229,13 +272,36 @@ void drawTrack() {
 }
 
 void keyPressed() {
+  // Track held states
+  if (key == 'd' || key == 'D') dDown = true;
+  if (key == 'f' || key == 'F') fDown = true;
+  if (key == 'j' || key == 'J') jDown = true;
+  if (key == 'k' || key == 'K') kDown = true;
+  
+  // Only gameplay hits when running
+  if (gameState != 1) return;
+
   int note;
-  if (key == 'd' || key == 'D') note = 0;
+  if      (key == 'd' || key == 'D') note = 0;
   else if (key == 'f' || key == 'F') note = 1;
   else if (key == 'j' || key == 'J') note = 2;
   else if (key == 'k' || key == 'K') note = 3;
   else return;
-  
+
+  handleHit(note);
+}
+
+// ============================================================
+// KEY RELEASE
+// ============================================================
+void keyReleased() {
+  if (key == 'd' || key == 'D') dDown = false;
+  if (key == 'f' || key == 'F') fDown = false;
+  if (key == 'j' || key == 'J') jDown = false;
+  if (key == 'k' || key == 'K') kDown = false;
+}
+
+void handleHit(int note) {
   float playbackPos = musicTrack.position() - trackData.introLength;
   TrackData.Hit matchedHit = null;
   float barLengthSeconds = 60f / (trackData.bpm/4f);
@@ -251,20 +317,22 @@ void keyPressed() {
     for (TrackData.Hit hit : bar.hits) {
       if (hit.state != TrackData.Hit.HIT_PENDING) continue;
       if (hit.note != note) continue;
-      float hitTimeSeconds = barStartSeconds + hit.beat*beatStepSeconds;
+
+      float hitTimeSeconds = barStartSeconds + hit.beat * beatStepSeconds;
       float timeDiff = abs(hitTimeSeconds - playbackPos);
+
       if (timeDiff < PERFECT_TOLERANCE_SECONDS) {
         score += PERFECT_SCORE * comboMultiplier;
         matchedHit = hit;
-        currentCombo++; 
+        currentCombo++;
         popups.add(new ScorePopup("GREEN!", width/2, height*0.65, color(4,214,0)));
         break;
-      }
+      } 
       else if (timeDiff < GREAT_TOLERANCE_SECONDS) {
         score += GREAT_SCORE * comboMultiplier;
         matchedHit = hit;
         currentCombo++;
-        popups.add(new ScorePopup("YELLOW!", width/2, height*0.65, color(255, 184, 41)));
+        popups.add(new ScorePopup("YELLOW!", width/2, height*0.65, color(255,184,41)));
         break;
       }
       else if (timeDiff < OK_TOLERANCE_SECONDS) {
@@ -281,7 +349,8 @@ void keyPressed() {
     matchedHit.state = TrackData.Hit.HIT_SUCCESS;
     matchedHit.stateTime = musicTrack.position();
     hitSound.play();
-    ++comboUpCounter;
+    comboUpCounter++;
+
     if (comboUpCounter == COMBO_UP_INTERVAL) {
       comboMultiplier = min(COMBO_MAX_MULTIPLIER, comboMultiplier + 1);
       comboUpCounter = 0;

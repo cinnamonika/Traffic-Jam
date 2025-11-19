@@ -1,5 +1,4 @@
 import java.util.List;
-
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -37,7 +36,6 @@ class TrackData {
   
   float introLength;
   float bpm;
-  
   List<Bar> bars;
   
   public TrackData(String filename) {
@@ -53,22 +51,19 @@ class TrackData {
       while (i < lines.length) {
         String line = lines[i++];
         
-        if (line.startsWith("#")) continue;  // Comment - do nothing
+        if (line.startsWith("#")) continue;
 
-        // Line represents one bar
         String[] beats = line.split(",");
-        
         List<Hit> hits = new ArrayList<Hit>(beats.length);
         
         for (int beatIndex = 0; beatIndex < beats.length; ++beatIndex) {
           String beatSpec = beats[beatIndex].trim();
-          if (beatSpec.equals("-")) continue;  // No hits on this beat
+          if (beatSpec.equals("-")) continue;
           
-          // Several characters may be listed, each indicating a different hit
           for (char c : beatSpec.toCharArray()) {
-            // A->0, B->1, etc...
-            int note = c-'A';
-            if (note < 0 || note >= NUM_NOTE_TYPES) throw new RuntimeException("Invalid note: " + c);
+            int note = c - 'A';
+            if (note < 0 || note >= NUM_NOTE_TYPES)
+              throw new RuntimeException("Invalid note: " + c);
             hits.add(new Hit(beatIndex, note, 1));
           }
         }
@@ -80,6 +75,5 @@ class TrackData {
       e.printStackTrace();
       throw new RuntimeException("Failed to load track data", e);
     }
-
   }
 }
