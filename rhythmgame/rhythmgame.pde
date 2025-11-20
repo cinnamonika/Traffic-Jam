@@ -1,4 +1,4 @@
-int gameState = 0;  // 0 = MENU, 1 = GAME //<>//
+int gameState = 0;  // 0 = MENU, 1 = GAME //<>// //<>//
 
 // Track which keys are currently held:
 boolean dDown = false;
@@ -85,13 +85,14 @@ void setup() {
     noteImages[i] = createTintedCopy(hitMarkerImage, NOTE_COLORS[i], TINT_STRENGTH);
   }
 
-  comboFont = createFont("Square.ttf", 160, true);
+  comboFont = createFont("Square.ttf", 160);
   textFont(comboFont);
 }
 
 void draw() {
 
   // MENU
+  textMode(SHAPE);
   if (gameState == 0) {
     drawMenuScreen();
 
@@ -286,12 +287,31 @@ void drawTrack() {
     }
   }
 
-  hint(ENABLE_DEPTH_TEST);
-  blendMode(NORMAL);
-  stroke(255);
-  strokeWeight(2);
-  line(-width, 0, width, 0);
+    // --- replace the block below (that is currently before popMatrix) with the popMatrix() first ---
   popMatrix();
+
+  // Draw judge band in screen space (on top of the 3D track)
+  hint(DISABLE_DEPTH_TEST);
+  strokeWeight(4);
+  stroke(255);
+
+  int noteHeight = hitMarkerImage.height;
+  int judgeTop = round(height * 0.75f) - noteHeight/2;
+  int judgeBottom = round(height * 0.75f) + noteHeight/2;
+
+  // horizontal lines across the screen
+  line(0, judgeTop, width, judgeTop);
+  line(0, judgeBottom, width, judgeBottom);
+
+  // subtle overlay between the lines
+  noStroke();
+  fill(255, 15);
+  rectMode(CORNER);
+  rect(0, judgeTop, width, judgeBottom - judgeTop);
+  rectMode(CENTER); // restore if you depend on CENTER later
+
+  hint(ENABLE_DEPTH_TEST);
+
 }
 
 void keyPressed() {
