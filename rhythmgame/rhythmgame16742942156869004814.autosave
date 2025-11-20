@@ -1,4 +1,4 @@
-int gameState = 0;  // 0 = MENU, 1 = GAME //<>//
+int gameState = 0;  // 0 = MENU, 1 = GAME
 
 // Track which keys are currently held:
 boolean dDown = false;
@@ -55,7 +55,7 @@ void setup() {
   hint(ENABLE_DEPTH_SORT);
   noSmooth();
   
-  hitMarkerImage = loadImage("car.png");
+  hitMarkerImage = loadImage("jinsoul.jpg");
   if (hitMarkerImage == null) {
     hitMarkerImage = createImage(64,64,ARGB);
     hitMarkerImage.loadPixels();
@@ -219,34 +219,27 @@ void drawTrack() {
   translate(width/2, height*0.75f);
   rotateX(0.70f);
   scale(TRACK_SCALE);
-
-  // Track background
+  
   noStroke();
   fill(30);
-  float trackWidth = LANE_SPACING_PIXELS * NUM_NOTE_TYPES;
+  float trackWidth = LANE_SPACING_PIXELS * (NUM_NOTE_TYPES - 1);
+  float laneWidth = trackWidth + LANE_SPACING_PIXELS * 0.9f;
   rectMode(CENTER);
-  rect(0, 0, trackWidth, BAR_LENGTH_PIXELS * 4); // centered
-
-  // Lane dividers
-  hint(DISABLE_DEPTH_TEST);
+  rect(0, 0, laneWidth, BAR_LENGTH_PIXELS * 4);
+  
   stroke(255);
   strokeWeight(6);
+  float leftEdgeX = -trackWidth * 0.5f;
   float dashLength = 40;
   float dashGap = 30;
-  float leftEdge = -trackWidth/2;
-  for (int i = 1; i < NUM_NOTE_TYPES; i++) {
-    float x = leftEdge + i * LANE_SPACING_PIXELS;
+  
+  for (int i = 0; i <= NUM_NOTE_TYPES; i++) {
+    float x = leftEdgeX + i * LANE_SPACING_PIXELS;
     for (float y = -BAR_LENGTH_PIXELS * 2; y < BAR_LENGTH_PIXELS * 2; y += dashLength + dashGap) {
       line(x, y, x, y + dashLength);
     }
   }
-  
-  float leftBorderX = -trackWidth/2;
-  float rightBorderX = trackWidth/2;
-  line(leftBorderX, -BAR_LENGTH_PIXELS*2, leftBorderX, BAR_LENGTH_PIXELS*2);
-  line(rightBorderX, -BAR_LENGTH_PIXELS*2, rightBorderX, BAR_LENGTH_PIXELS*2);
 
-  // Draw notes
   float playbackPos = musicTrack.position();
   float barLengthSeconds = 60f / (trackData.bpm/4f);
   float offsetY = ((playbackPos - trackData.introLength) / barLengthSeconds) * BAR_LENGTH_PIXELS;
@@ -254,25 +247,25 @@ void drawTrack() {
   imageMode(CENTER);
   blendMode(ADD);
   hint(DISABLE_DEPTH_TEST);
-
+  
   for (int barIndex = 0; barIndex < trackData.bars.size(); ++barIndex) {
     TrackData.Bar bar = trackData.bars.get(barIndex);
     float beatStepY = -BAR_LENGTH_PIXELS / bar.numBeats;
     float barStartY = -BAR_LENGTH_PIXELS * barIndex + offsetY;
-
+    
     float cullMargin = BAR_LENGTH_PIXELS * 3;
     if (barStartY > cullMargin) continue;
     if (barStartY < -cullMargin * 2) break;
-
+    
     for (TrackData.Hit hit : bar.hits) {
-      float hitX = leftEdge + hit.note * LANE_SPACING_PIXELS + LANE_SPACING_PIXELS/2;
+      float hitX = leftEdgeX + (hit.note + 0.5f) * LANE_SPACING_PIXELS;
       float hitY = barStartY + hit.beat * beatStepY;
-
+      
       switch (hit.state) {
         case TrackData.Hit.HIT_PENDING:
           image(noteImages[hit.note], hitX, hitY);
           break;
-
+          
         case TrackData.Hit.HIT_FAILURE:
         case TrackData.Hit.HIT_SUCCESS: {
           float timeSinceHit = playbackPos - hit.stateTime;
