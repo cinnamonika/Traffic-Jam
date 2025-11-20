@@ -54,7 +54,7 @@ void setup() {
   noSmooth(); // We can remove this if it runs smoothly without it at the end
   
   // Load note image
-  hitMarkerImage = loadImage("jinsoul.jpg");
+  hitMarkerImage = loadImage("car.png");
   if (hitMarkerImage == null) {
     println("hitMarkerImage not found in data folder.");
     hitMarkerImage = createImage(64,64,ARGB);
@@ -221,11 +221,22 @@ void drawTrack() {
 
   hint(ENABLE_DEPTH_TEST);
   blendMode(NORMAL);
-  
-  stroke(255);
-  strokeWeight(2);
-  line(-width, 0, width, 0);
+
   popMatrix();
+  
+  int noteHeight = hitMarkerImage.height;
+  int centerY = round(height * 0.75f);
+  int judgeTop = centerY - noteHeight/2;
+  int judgeBottom = centerY + noteHeight/2;
+
+  stroke(255);
+
+  line(0, judgeTop, width, judgeTop);
+  line(0, judgeBottom, width, judgeBottom);
+  
+  noStroke();
+  fill(255, 255, 255, 15);
+  rect(0, judgeTop, width, (judgeBottom - judgeTop));
 }
 
 void keyPressed() {
@@ -287,8 +298,31 @@ void keyPressed() {
       comboUpCounter = 0;
     }
   } else {
-    currentCombo = 0;
-  }
+    boolean nearNote = false;
+    barLengthSeconds = 60f / (trackData.bpm/4f);
+    for (int barIndex = 0; barIndex < trackData.bars.size(); ++barIndex) {
+      TrackData.Bar bar = trackData.bars.get(barIndex);
+      float barStartSeconds = barIndex * barLengthSeconds;
+
+      float beatStepSeconds = barLengthSeconds / bar.numBeats;
+      for (TrackData.Hit hit : bar.hits) {
+        if (hit.state != TrackData.Hit.HIT_PENDING) continue;
+
+        float hitTimeSeconds = barStartSeconds + hit.beat * beatStepSeconds;
+        float timeDiff = abs(hitTimeSeconds - playbackPos);
+
+        if (timeDiff < OK_TOLERANCE_SECONDS) {
+          nearNote = true;
+          break;
+        }
+      }
+      if (nearNote) break;
+    }
+    if (nearNote) {
+      currentCombo = 0;
+    }
+}
+
 }
 
 class ScorePopup {
