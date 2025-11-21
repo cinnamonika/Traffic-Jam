@@ -1,16 +1,27 @@
 /* ============================================================ //<>//
-   GLOBALS + SETUP (JAVA2D VERSION)
+   GLOBALS + SETUP (JAVA2D VERSION) + PI4J INPUT
    ============================================================ */
 
 int gameState = 0;  // 0 = MENU, 1 = GAME
 
-// GPIO pins
-int PIN_D = 576;
-int PIN_F = 577;
-int PIN_J = 593;
-int PIN_K = 598;
+// BCM GPIO pins
+int PIN_D = 5;
+int PIN_F = 6;
+int PIN_J = 27;
+int PIN_K = 22;
 
-import processing.io.*;
+// --- PI4J ---
+import com.pi4j.Pi4J;
+import com.pi4j.context.Context;
+import com.pi4j.io.gpio.digital.*;
+
+Context pi4j;
+DigitalInput inputD;
+DigitalInput inputF;
+DigitalInput inputJ;
+DigitalInput inputK;
+
+// Processing Sound
 import processing.sound.*;
 
 // GAME CONSTANTS
@@ -31,10 +42,9 @@ final float LANE_SPACING_PIXELS = 150f;
 final float TRACK_SCALE = 1.25f;
 
 // 2D tilt config
-final float TILT = 0.60f;       // slightly less tilt
+final float TILT = 0.60f;
 final float COS_TILT = cos(TILT);
 
-// (When tilting around judge line, we ONLY compress Y)
 float projectY(float y) {
   return y * COS_TILT;
 }
@@ -72,18 +82,37 @@ ArrayList<ScorePopup> popups = new ArrayList<ScorePopup>();
    ============================================================ */
 
 void setup() {
-  // *** IMPORTANT ***
-  // No P3D — Java2D only
   fullScreen();
-
   noSmooth();
 
-  // GPIO pins
-  GPIO.pinMode(PIN_D, GPIO.INPUT);
-  GPIO.pinMode(PIN_F, GPIO.INPUT);
-  GPIO.pinMode(PIN_J, GPIO.INPUT);
-  GPIO.pinMode(PIN_K, GPIO.INPUT);
+  // --- PI4J INIT ---
+  pi4j = Pi4J.newAutoContext();
 
+  inputD = pi4j.create(DigitalInput.newConfigBuilder(pi4j)
+        .id("button-d").address(PIN_D)
+        .pull(PullResistance.PULL_UP)
+        .debounce(5)
+        .build());
+
+  inputF = pi4j.create(DigitalInput.newConfigBuilder(pi4j)
+        .id("button-f").address(PIN_F)
+        .pull(PullResistance.PULL_UP)
+        .debounce(5)
+        .build());
+
+  inputJ = pi4j.create(DigitalInput.newConfigBuilder(pi4j)
+        .id("button-j").address(PIN_J)
+        .pull(PullResistance.PULL_UP)
+        .debounce(5)
+        .build());
+
+  inputK = pi4j.create(DigitalInput.newConfigBuilder(pi4j)
+        .id("button-k").address(PIN_K)
+        .pull(PullResistance.PULL_UP)
+        .debounce(5)
+        .build());
+
+  // Images
   hitMarkerImage = loadImage("car.png");
   if (hitMarkerImage == null) {
     hitMarkerImage = createImage(64,64,ARGB);
@@ -93,7 +122,6 @@ void setup() {
     hitMarkerImage.updatePixels();
   }
 
-  // simple bg fallback
   bgImage = createImage(width, height, ARGB);
   bgImage.loadPixels();
   for (int i = 0; i < bgImage.pixels.length; i++)
@@ -107,7 +135,7 @@ void setup() {
   // Track data
   trackData = new TrackData(dataPath("karmatrack.txt"));
 
-  // Note colors
+  // Note textures
   noteImages = new PImage[NUM_NOTE_TYPES];
   weakNoteColors = new color[NUM_NOTE_TYPES];
   for (int i = 0; i < NUM_NOTE_TYPES; i++) {
@@ -119,13 +147,13 @@ void setup() {
 }
 
 /* ============================================================
-   BUTTON INPUT
+   BUTTON INPUT (Pi4J)
    ============================================================ */
 
-boolean buttonD() { return GPIO.digitalRead(PIN_D) == GPIO.LOW; }
-boolean buttonF() { return GPIO.digitalRead(PIN_F) == GPIO.LOW; }
-boolean buttonJ() { return GPIO.digitalRead(PIN_J) == GPIO.LOW; }
-boolean buttonK() { return GPIO.digitalRead(PIN_K) == GPIO.LOW; }
+boolean buttonD() { return inputD.state() == DigitalState.LOW; }
+boolean buttonF() { return inputF.state() == DigitalState.LOW; }
+boolean buttonJ() { return inputJ.state() == DigitalState.LOW; }
+boolean buttonK() { return inputK.state() == DigitalState.LOW; }
 
 /* ============================================================
    MAIN DRAW LOOP
@@ -146,7 +174,6 @@ void draw() {
   // GAMEPLAY
   background(0);
 
-  // Background image
   tint(255, 40);
   imageMode(CORNER);
   image(bgImage, 0, 0, width, height);
@@ -164,15 +191,13 @@ void draw() {
   }
 
   drawScore();
-  drawTrack();      // <-- Fully rewritten in PART 3/4
+  drawTrack();
   drawComboNumber();
 
-  // End of song
   if (!musicTrack.isPlaying()) {
     gameState = 0;
   }
 
-  // Input
   if (buttonD()) handleHit(0);
   if (buttonF()) handleHit(1);
   if (buttonJ()) handleHit(2);
@@ -213,7 +238,6 @@ void startGame() {
   musicTrack.play();
   gameState = 1;
 }
-
 
 /* ============================================================
    SCORE + COMBO
@@ -277,7 +301,7 @@ void detectFailedHits() {
 }
 
 /* ============================================================
-   HIT LOGIC (unchanged gameplay)
+   HIT LOGIC
    ============================================================ */
 
 void handleHit(int note) {
@@ -344,7 +368,7 @@ void handleHit(int note) {
 }
 
 /* ============================================================
-   SCORE POPUP CLASS (unchanged, Java2D safe)
+   SCORE POPUP CLASS
    ============================================================ */
 
 class ScorePopup {
@@ -379,51 +403,35 @@ class ScorePopup {
   }
 }
 
-
 /* ============================================================
-   TRACK RENDERING (JAVA2D TILTED VERSION)
+   TRACK RENDERING
    ============================================================ */
 
 void drawTrack() {
 
-  // Where the judge line sits on screen
   float judgeY_screen = height;
 
-  // Track width in unprojected space
   float trackWidth = LANE_SPACING_PIXELS * NUM_NOTE_TYPES;
   float leftEdge = -trackWidth / 2;
 
-  // Playback position
   float playbackPos = musicTrack.position();
   float barLengthSec = 60f / (trackData.bpm / 4f);
 
-  // Offset along track (positive = closer)
   float offsetY = ((playbackPos - trackData.introLength) / barLengthSec) * BAR_LENGTH_PIXELS;
-
-  /* ------------------------------------------------------------
-     1. DRAW TRACK BASE (dark rectangle)
-     ------------------------------------------------------------ */
 
   noStroke();
   fill(30);
 
-  // Unprojected track body (centered on x = width/2)
   float X0 = width / 2 + leftEdge;
   float X1 = width / 2 + leftEdge + trackWidth;
 
-  // Track depth extends far above judge line
   float trackDepth = BAR_LENGTH_PIXELS * 4;
 
-  // Project the top and bottom edges
   float Y_bottom = projectY(0);
   float Y_top = projectY(-trackDepth);
 
   rectMode(CORNERS);
   rect(X0, judgeY_screen + Y_top, X1, judgeY_screen + Y_bottom);
-
-  /* ------------------------------------------------------------
-     2. LANE DIVIDERS
-     ------------------------------------------------------------ */
 
   stroke(255);
   strokeWeight(4);
@@ -431,14 +439,12 @@ void drawTrack() {
   for (int i = 1; i < NUM_NOTE_TYPES; i++) {
     float baseX = width/2 + leftEdge + i*LANE_SPACING_PIXELS;
 
-    // vertical divider from far to near
     float yA = judgeY_screen + projectY(-trackDepth);
     float yB = judgeY_screen + projectY(0);
 
     line(baseX, yA, baseX, yB);
   }
 
-  // Edge borders
   float Lx = width/2 + leftEdge;
   float Rx = width/2 + leftEdge + trackWidth;
 
@@ -447,10 +453,6 @@ void drawTrack() {
 
   line(Lx, Yfar, Lx, Ynear);
   line(Rx, Yfar, Rx, Ynear);
-
-  /* ------------------------------------------------------------
-     3. DRAW NOTES
-     ------------------------------------------------------------ */
 
   imageMode(CENTER);
 
@@ -471,7 +473,6 @@ void drawTrack() {
 
       float noteY_unproj = barStartY + hit.beat * beatStepY;
 
-      // PROJECT Y (constant-size notes)
       float noteY_proj = judgeY_screen + projectY(noteY_unproj);
 
       switch (hit.state) {
@@ -491,10 +492,6 @@ void drawTrack() {
     }
   }
 
-  /* ------------------------------------------------------------
-     4. JUDGE LINES (flat, not projected)
-     ------------------------------------------------------------ */
-
   int noteHeight = hitMarkerImage.height;
   int judgeTop = round(judgeY_screen - noteHeight/2);
   int judgeBottom = round(judgeY_screen + noteHeight/2);
@@ -509,8 +506,9 @@ void drawTrack() {
   rectMode(CORNER);
   rect(0, judgeTop, width, judgeBottom - judgeTop);
 }
+
 /* ============================================================
-   IMAGE TINT (unchanged, Java2D safe)
+   IMAGE TINT
    ============================================================ */
 
 PImage createTintedCopy(PImage src, color tintColor, float strength) {
@@ -534,12 +532,20 @@ PImage createTintedCopy(PImage src, color tintColor, float strength) {
     float g = g0 * (1 - strength) + gt * strength;
     float b = b0 * (1 - strength) + bt * strength;
 
-    out.pixels[i] = color(constrain(r, 0, 255),
-                          constrain(g, 0, 255),
-                          constrain(b, 0, 255),
+    out.pixels[i] = color(constrain(r,0,255),
+                          constrain(g,0,255),
+                          constrain(b,0,255),
                           a);
   }
 
   out.updatePixels();
   return out;
+}
+
+/* ============================================================
+   SAFE SHUTDOWN (PI4J)
+   ============================================================ */
+void stop() {
+  if (pi4j != null) pi4j.shutdown();
+  super.stop();
 }
