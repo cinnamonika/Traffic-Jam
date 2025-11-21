@@ -1,25 +1,14 @@
 /* ============================================================ //<>//
-   GLOBALS + SETUP (JAVA2D VERSION) + PI4J INPUT
+   GLOBALS + SETUP (JAVA2D VERSION) + KEYBOARD INPUT
    ============================================================ */
 
 int gameState = 0;  // 0 = MENU, 1 = GAME
 
-// BCM GPIO pins
-int PIN_D = 5;
-int PIN_F = 6;
-int PIN_J = 27;
-int PIN_K = 22;
-
-// --- PI4J ---
-import com.pi4j.Pi4J;
-import com.pi4j.context.Context;
-import com.pi4j.io.gpio.digital.*;
-
-Context pi4j;
-DigitalInput inputD;
-DigitalInput inputF;
-DigitalInput inputJ;
-DigitalInput inputK;
+// Track which keys are currently held:
+boolean dDown = false;
+boolean fDown = false;
+boolean jDown = false;
+boolean kDown = false;
 
 // Processing Sound
 import processing.sound.*;
@@ -85,33 +74,6 @@ void setup() {
   fullScreen();
   noSmooth();
 
-  // --- PI4J INIT ---
-  pi4j = Pi4J.newAutoContext();
-
-  inputD = pi4j.create(DigitalInput.newConfigBuilder(pi4j)
-        .id("button-d").address(PIN_D)
-        .pull(PullResistance.PULL_UP)
-        .debounce(5)
-        .build());
-
-  inputF = pi4j.create(DigitalInput.newConfigBuilder(pi4j)
-        .id("button-f").address(PIN_F)
-        .pull(PullResistance.PULL_UP)
-        .debounce(5)
-        .build());
-
-  inputJ = pi4j.create(DigitalInput.newConfigBuilder(pi4j)
-        .id("button-j").address(PIN_J)
-        .pull(PullResistance.PULL_UP)
-        .debounce(5)
-        .build());
-
-  inputK = pi4j.create(DigitalInput.newConfigBuilder(pi4j)
-        .id("button-k").address(PIN_K)
-        .pull(PullResistance.PULL_UP)
-        .debounce(5)
-        .build());
-
   // Images
   hitMarkerImage = loadImage("car.png");
   if (hitMarkerImage == null) {
@@ -147,15 +109,6 @@ void setup() {
 }
 
 /* ============================================================
-   BUTTON INPUT (Pi4J)
-   ============================================================ */
-
-boolean buttonD() { return inputD.state() == DigitalState.LOW; }
-boolean buttonF() { return inputF.state() == DigitalState.LOW; }
-boolean buttonJ() { return inputJ.state() == DigitalState.LOW; }
-boolean buttonK() { return inputK.state() == DigitalState.LOW; }
-
-/* ============================================================
    MAIN DRAW LOOP
    ============================================================ */
 
@@ -165,7 +118,7 @@ void draw() {
   if (gameState == 0) {
     drawMenuScreen();
 
-    if (buttonD() && buttonF() && buttonJ() && buttonK()) {
+    if (dDown && fDown && jDown && kDown) {
       startGame();
     }
     return;
@@ -197,11 +150,37 @@ void draw() {
   if (!musicTrack.isPlaying()) {
     gameState = 0;
   }
+}
 
-  if (buttonD()) handleHit(0);
-  if (buttonF()) handleHit(1);
-  if (buttonJ()) handleHit(2);
-  if (buttonK()) handleHit(3);
+/* ============================================================
+   KEYBOARD INPUT
+   ============================================================ */
+
+void keyPressed() {
+  // Track held states
+  if (key == 'd' || key == 'D') dDown = true;
+  if (key == 'f' || key == 'F') fDown = true;
+  if (key == 'j' || key == 'J') jDown = true;
+  if (key == 'k' || key == 'K') kDown = true;
+
+  // Only gameplay hits when running
+  if (gameState != 1) return;
+
+  int note;
+  if      (key == 'd' || key == 'D') note = 0;
+  else if (key == 'f' || key == 'F') note = 1;
+  else if (key == 'j' || key == 'J') note = 2;
+  else if (key == 'k' || key == 'K') note = 3;
+  else return;
+
+  handleHit(note);
+}
+
+void keyReleased() {
+  if (key == 'd' || key == 'D') dDown = false;
+  if (key == 'f' || key == 'F') fDown = false;
+  if (key == 'j' || key == 'J') jDown = false;
+  if (key == 'k' || key == 'K') kDown = false;
 }
 
 /* ============================================================
@@ -218,7 +197,7 @@ void drawMenuScreen() {
   text("Traffic Jam", width/2, height/2 - 40);
 
   textSize(30);
-  text("Hold ALL 4 BUTTONS to START", width/2, height/2 + 20);
+  text("Hold D + F + J + K to START", width/2, height/2 + 20);
 }
 
 void startGame() {
@@ -540,12 +519,4 @@ PImage createTintedCopy(PImage src, color tintColor, float strength) {
 
   out.updatePixels();
   return out;
-}
-
-/* ============================================================
-   SAFE SHUTDOWN (PI4J)
-   ============================================================ */
-void stop() {
-  if (pi4j != null) pi4j.shutdown();
-  super.stop();
 }
