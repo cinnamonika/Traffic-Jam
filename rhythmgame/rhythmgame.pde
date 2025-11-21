@@ -5,10 +5,10 @@
 int gameState = 0;  // 0 = MENU, 1 = GAME
 
 // GPIO pins
-int PIN_D = 5;
-int PIN_F = 6;
-int PIN_J = 27;
-int PIN_K = 22;
+int PIN_D = 576;
+int PIN_F = 577;
+int PIN_J = 593;
+int PIN_K = 598;
 
 import processing.io.*;
 import processing.sound.*;
@@ -74,15 +74,15 @@ ArrayList<ScorePopup> popups = new ArrayList<ScorePopup>();
 void setup() {
   // *** IMPORTANT ***
   // No P3D — Java2D only
-  size(1012, 700);
+  fullScreen();
 
   noSmooth();
 
   // GPIO pins
-  GPIO.pinMode(PIN_D, GPIO.INPUT_PULLUP);
-  GPIO.pinMode(PIN_F, GPIO.INPUT_PULLUP);
-  GPIO.pinMode(PIN_J, GPIO.INPUT_PULLUP);
-  GPIO.pinMode(PIN_K, GPIO.INPUT_PULLUP);
+  GPIO.pinMode(PIN_D, GPIO.INPUT);
+  GPIO.pinMode(PIN_F, GPIO.INPUT);
+  GPIO.pinMode(PIN_J, GPIO.INPUT);
+  GPIO.pinMode(PIN_K, GPIO.INPUT);
 
   hitMarkerImage = loadImage("car.png");
   if (hitMarkerImage == null) {
@@ -529,7 +529,7 @@ PImage createTintedCopy(PImage src, color tintColor, float strength) {
     float r0 = red(pix);
     float g0 = green(pix);
     float b0 = blue(pix);
-
+  
     float r = r0 * (1 - strength) + rt * strength;
     float g = g0 * (1 - strength) + gt * strength;
     float b = b0 * (1 - strength) + bt * strength;
