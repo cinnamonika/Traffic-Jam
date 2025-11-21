@@ -136,16 +136,16 @@ void draw() {
 
   float now = musicTrack.position();
 
+  drawScore();
+  drawTrack();
+  drawComboNumber();
+  
   // popups
   for (int i = popups.size() - 1; i >= 0; --i) {
     ScorePopup p = popups.get(i);
     if (p.isAlive(now)) p.draw(now);
     else popups.remove(i);
   }
-
-  drawScore();
-  drawTrack();
-  drawComboNumber();
 
   if (!musicTrack.isPlaying()) {
     gameState = 0;
@@ -388,7 +388,7 @@ class ScorePopup {
 
 void drawTrack() {
 
-  float judgeY_screen = height;
+  float judgeY_screen = height - 200;
 
   float trackWidth = LANE_SPACING_PIXELS * NUM_NOTE_TYPES;
   float leftEdge = -trackWidth / 2;
@@ -406,11 +406,11 @@ void drawTrack() {
 
   float trackDepth = BAR_LENGTH_PIXELS * 4;
 
-  float Y_bottom = projectY(0);
+  float Y_bottom = height - judgeY_screen;
   float Y_top = projectY(-trackDepth);
 
   rectMode(CORNERS);
-  rect(X0, judgeY_screen + Y_top, X1, judgeY_screen + Y_bottom);
+  rect(X0, judgeY_screen + Y_top, X1, height);
 
   stroke(255);
   strokeWeight(4);
@@ -421,7 +421,7 @@ void drawTrack() {
     float yA = judgeY_screen + projectY(-trackDepth);
     float yB = judgeY_screen + projectY(0);
 
-    line(baseX, yA, baseX, yB);
+    line(baseX, yA, baseX, height);
   }
 
   float Lx = width/2 + leftEdge;
@@ -430,8 +430,8 @@ void drawTrack() {
   float Yfar = judgeY_screen + projectY(-trackDepth);
   float Ynear = judgeY_screen + projectY(0);
 
-  line(Lx, Yfar, Lx, Ynear);
-  line(Rx, Yfar, Rx, Ynear);
+  line(Lx, Yfar, Lx, height);
+  line(Rx, Yfar, Rx, height);
 
   imageMode(CENTER);
 
